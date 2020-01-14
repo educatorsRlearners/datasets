@@ -5,10 +5,12 @@ library(ggthemes)
 library(spData)
 
 
-#Hat tip to https://categitau.com/using-rvest-to-scrape-data-from-wikipedia/ 
+#Hat tip to https://categitau.com/using-rvest-to-scrape-data-from-wikipedia/ for clear instructiosn on
+#scraping Wikipedia
 
 site <- read_html("https://en.wikipedia.org/wiki/List_of_official_languages_by_country_and_territory")
 
+#Create a table of world languages
 world_languages <- site %>% 
   html_node("table.wikitable") %>%
   html_table()
@@ -20,39 +22,19 @@ world_languages <- world_languages %>%
 #Create only one official language per country
 world_languages$`Official language` <- str_extract(world_languages$`Official language`, '[A-Za-z]+')
 
+#If the country doesn't have an official lanuguage, use the national language
 world_languages$`Official language` <- if_else(
   condition = is.na(world_languages$`Official language`), 
   true = world_languages$`National language`,
   false = world_languages$`Official language`)
 
-#Remove brackets from the first two columns
+#Remove brackets and extra charachters from the first two columns
 world_languages$Country <- str_remove(world_languages$Country, "\\[.*\\]")
 world_languages$`Official language` <- str_remove(world_languages$`Official language`, "\\[.*\\]" )
 world_languages$`Official language` <- str_extract(world_languages$`Official language`, '[A-Za-z]+')
 
 #Update Myannmar
 world_languages[127, 1] <- 'Myanmar'
-
-#Get continents
-continents <- spData::world %>% 
-  select(name_long, continent)
-
-#Update North and South Korea 
-continents[96, 1] <- 'North Korea'
-continents[97, 1] <- 'South Korea'
-
-#Update Laos
-continents[93, 1] <-'Laos'
-
-#Update Ivory Coast
-continents[61, 1] <- 'Ivory Coast'
-
-#Update Russia
-continents[19, 1] <- 'Russia'
-
-
-#Add continents
-world_languages <- left_join(world_languages, continents, by =c("Country"="name_long"))
 
 #Update Kuwait 
 world_languages[97, 2] <- 'Arabic'
@@ -74,6 +56,27 @@ world_languages[2,2] <- "Dari"
 
 #Update Philipines
 world_languages[147, 2] <- 'Tagalog'
+
+
+#Get continents
+continents <- spData::world %>% 
+  select(name_long, continent)
+
+#Update North and South Korea 
+continents[96, 1] <- 'North Korea'
+continents[97, 1] <- 'South Korea'
+
+#Update Laos
+continents[93, 1] <-'Laos'
+
+#Update Ivory Coast
+continents[61, 1] <- 'Ivory Coast'
+
+#Update Russia
+continents[19, 1] <- 'Russia'
+
+#Join continents and world languages data frames
+world_languages <- left_join(world_languages, continents, by =c("Country"="name_long"))
 
 
 # Scrape FSI website
@@ -142,8 +145,10 @@ category3$hours <- 1100
 
 category3$category <- "Category 3"
 
+#Remove empty row
 category3 <- category3[-c(48,11),]
 
+#Scrape category 4
 fsi_site %>% 
   html_node(xpath = '/html/body/div[1]/div[1]/main/article/div[2]/div/div/table') %>% 
   html_table() %>% 
@@ -158,11 +163,11 @@ category4 <- category4[-c(6),]
 #Add category column
 category4$category <- "Category 4"
 
-#Remove make Mandarin and Cantonese separate languages
+#Make Mandarin and Cantonese separate languages
 category4$language <- str_remove(category4$language, "Chinese – ")
 
 
-#Combine categories
+#Combine categories to create a new df
 fsi_rankings <- bind_rows(category1, category2, category3, category4)
 
 fsi_rankings <- fsi_rankings %>% 
@@ -175,12 +180,11 @@ fsi_rankings$category <- fct_relevel(fsi_rankings$category, "Category 0")
 #Join the dataframes
 df <- left_join(x = world_languages, y = fsi_rankings, by = c("Official language" = "language"))
 
+#Select relevant columns
 df <- df %>% 
   select(Country, `Official language`, hours, category, everything())
 
-
-
-
+#Create world map
 world_map <- map_data("world")
 
 world_map <- world_map %>% 
@@ -192,7 +196,7 @@ world_map$region <- world_map$region %>%
 world_map$region <- world_map$region %>% 
   str_replace('UK', 'United Kingdom')
 
-
+#Create final data frame for maps
 world_map_difficulty <- left_join(x = world_map, y = df, by = c("region" = "Country"))
 
 ggplot(world_map_difficulty, aes(x = long, y = lat, group = group)) +
@@ -210,16 +214,18 @@ ggplot(world_map_difficulty, aes(x = long, y = lat, group = group)) +
   theme(legend.text=element_text(size=12)) +
   labs(fill = '') -> world_difficulty
 
+#View world map
 world_difficulty
 
+#Filter for only Asian countries
 asian_difficulty <-  world_map_difficulty %>% 
   filter(continent == "Asia")
 
+#Make map
 ggplot(asian_difficulty, aes(x = long, y = lat, group = group)) +
   geom_polygon(aes(fill = category), color = "white") +
   theme_map()+
-  scale_fill_brewer(type = "seq", 
-                    palette = "Reds", 
+  scale_fill_manual(values = c("#fee0d2","#fa694a","#a52926"), 
                     na.value = "gray",
                     labels = c("Category 2 ~900 hours", 
                                "Category 3 ~1100 hours",
@@ -228,4 +234,5 @@ ggplot(asian_difficulty, aes(x = long, y = lat, group = group)) +
   theme(legend.text=element_text(size=12)) +
   labs(fill = '') -> asian_map_difficulty
 
+#view map
 asian_map_difficulty
